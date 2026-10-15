@@ -1,0 +1,35 @@
+METROLIST DESKTOP - WINDOWS
+
+This is a custom educational Windows port using the real Metrolist Kotlin engine. It is not the earlier MetroDesk browser-based player and is not an official Metrolist desktop release.
+
+OPEN
+After installation, open the Metrolist Desktop shortcut. Alternatively, double-click Run-Metrolist.cmd in this project folder. The packaged app includes its Java runtime and FFmpeg audio decoder.
+
+LISTEN WITHOUT TYPING
+Open Home and click Play my mix with an empty search box. The first mix uses music from the guest home feed and its collections. Likes and listening history shape later mixes on this PC. This is not Google account synchronization.
+
+PLAYER AND LYRICS
+Use the bottom controls for play/pause, previous/next, shuffle, repeat, seek and volume. Click Lyrics for synchronized or plain lyrics. Click a timed line to seek; adjust Lyrics offset in half-second steps. Provider coverage varies. Related shows radio recommendations. Up next lets you play, move or remove queued songs.
+
+LIBRARY
+Click New playlist to create a local playlist. Use the three-dot button beside a song to add it. Open a playlist to rename, reorder, remove songs or delete the playlist without deleting audio files.
+
+Search supports songs, music videos, albums, artists and playlists. Video results play their audio. Public playlist import and collection browsing currently load the first page only.
+
+Import local audio from Your library or Settings. Original files stay where you selected them. Local recordings without known duration cannot use the seek slider in this build.
+
+SETTINGS
+Light theme, sleep timer, speed, library backup export and merge import are available. Backups contain metadata and local file paths, not audio files. The library lives in %APPDATA%\MetrolistDesktop\library.json. The earlier MetroDesk browser library remains separate and untouched.
+
+CLOSE
+Close the window to stop the app and playback. Minimize the window to keep listening.
+
+NOT PORTED YET
+Google sign-in and cloud sync, downloads, casting, Listen Together, Last.fm/Discord, AI lyric translation, complete word-level/background-vocal lyrics, equalizer, normalization, crossfade, silence skipping, Android widgets/Android Auto, global media keys, and complete collection pagination.
+
+REBUILD ON THIS PC
+Run Build-Desktop.ps1. It uses the local .tools Java 21 folder, runs tests, and creates the Windows app image and installer under desktop\build\compose\binaries\main. Keep the .tools compiler for rebuilding; the installed app does not need it. This project retains the upstream GPL license and original source history.
+
+The installer is unsigned. Windows may show a publisher warning. Verify the release checksum and source before installing; do not disable Windows security protections. See README.md for project credits, build instructions, and known limitations.
+
+This unofficial port is intended for educational and research purposes only. Original project: https://github.com/MetrolistGroup/Metrolist. The original GPL license remains unchanged. See LICENSE and THIRD-PARTY-NOTICES.txt. Respect content owners and service terms.

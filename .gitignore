@@ -117,3 +117,7 @@ app/src/main/cpp/coverart/
 .cortexkit
 .mcp.json
 *.har
+
+# Local Windows port toolchain and packaged outputs
+.tools/
+desktop/dist/

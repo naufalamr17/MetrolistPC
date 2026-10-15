@@ -1,349 +1,114 @@
-<div align="center">
+# Metrolist Desktop for Windows
 
-<img src="fastlane/metadata/android/en-US/images/icon.png" alt="Metrolist app icon" width="200" />
+An unofficial, educational Windows port of [Metrolist](https://github.com/MetrolistGroup/Metrolist), built with Kotlin and Compose Desktop.
 
-# Metrolist
+**This project is intended for educational and research purposes only.** It studies how an open-source Android music client can be adapted into a desktop application. It is not an official Metrolist release and is not affiliated with or endorsed by Metrolist Group, YouTube, or Google.
 
-### YouTube Music client for Android
+The original GPL license remains unchanged. The educational-purpose statement describes the project's intent; it does not add restrictions to the rights granted by that license. Respect content owners' rights and the terms of the services you use. This project does not grant permission to access or redistribute music or lyrics.
 
-<br/>
+## What this port is
 
-<a href="https://www.blacksmith.sh">
-  <img src="assets/blacksmith-powered.png" alt="CI powered by Blacksmith" width="280" />
-</a>
+This is a native JVM desktop application, not an APK running inside an Android emulator and not the earlier browser-based MetroDesk prototype. It compiles the original Metrolist InnerTube and LRCLIB Kotlin source directly, adds a desktop interface, and uses a bundled FFmpeg decoder for audio playback.
 
-<br/>
-<br/>
+The desktop port was developed against upstream commit [`76fa5a78b5110674442884b6f21c0cef51cdb782`](https://github.com/MetrolistGroup/Metrolist/commit/76fa5a78b5110674442884b6f21c0cef51cdb782). The Android source, original notices, and Git history are retained.
 
-[![Latest release](https://img.shields.io/github/v/release/MetrolistGroup/Metrolist?style=for-the-badge&labelColor=0d1117)](https://github.com/MetrolistGroup/Metrolist/releases)
-[![License](https://img.shields.io/github/license/MetrolistGroup/metrolist?style=for-the-badge&labelColor=0d1117)](https://github.com/MetrolistGroup/Metrolist/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/MetrolistGroup/Metrolist/total?style=for-the-badge&labelColor=0d1117)](https://github.com/MetrolistGroup/Metrolist/releases)
+The Windows work is on [`feat/windows-desktop-port`](https://github.com/naufalamr17/MetrolistPC/tree/feat/windows-desktop-port). The repository's `main` branch remains unchanged.
 
-<br/>
+## Install on Windows
 
-[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white&labelColor=0d1117)](https://dsc.gg/metrolist)
-[![Telegram](https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white&labelColor=0d1117)](https://t.me/metrolistapp)
+1. Open the [Windows desktop preview release](https://github.com/naufalamr17/MetrolistPC/releases/tag/desktop-v13.7.0-preview.1) and download `Metrolist-Desktop-Setup.exe`.
+2. Run the installer, then open **Metrolist Desktop** from the Start menu or desktop shortcut.
+3. Open **Home** and click **Play my mix** to start discovering music without typing a title.
 
-<br/>
+The installer targets Windows x64 and includes its Java runtime and audio decoder. You do not need Android Studio, an Android emulator, or a separate Java installation to use it.
 
-[**Download**](#download-now) · [**Features**](#features) · [**Translate**](#translations) · [**FAQ**](#faq) · [**Support**](#support-the-project)
+The installer is **unsigned**. Windows may show an unknown-publisher warning. Verify the release checksum and source before deciding whether to install; do not disable Windows security protections.
 
-</div>
+The installer is distributed as a Release attachment rather than committed into the source tree. Source ZIP/TAR downloads alone are not installers.
 
-> [!WARNING]
-> # MAINTENANCE MODE
-> Metrolist is currently in maintenance mode. This means we will only be fixing bugs and making minor improvements. Please do not submit PRs for new features or major changes, as they will not be accepted.  
-> The app is **NOT** dead, please stay tuned for updates on our discord (found above).
+## Available features
 
-> [!WARNING]
-> **Regional Restriction** - If YouTube Music is unavailable in your region, this app will not work without a **VPN or proxy** connecting to a supported region.
+- Online music discovery, guest home shelves, and search for songs, videos, albums, artists, and public playlists. Video results play their audio.
+- **Play my mix** with no search text. Guest collections provide initial seeds; local likes and listening history help choose later seeds for upstream radio recommendations.
+- Play/pause, previous/next, seeking when duration is known, volume, playback speed, shuffle, repeat, queue editing, and related tracks.
+- Synchronized or plain lyrics, active-line highlighting, click-to-seek, and adjustable lyric timing.
+- Local likes, listening history, editable playlists, local audio imports, and library backup export/merge import.
+- Light/dark interface and a sleep timer.
 
----
+This is an early desktop port, **not full Android feature parity**. Recommendations use the guest service and local library, not a signed-in Google account. Lyrics and streaming depend on external providers and can fail or vary by region.
 
-<div align="center">
+## Known limitations
 
-<h1><a id="screenshots"></a>Screenshots</h1>
+Google sign-in/cloud sync, offline downloads, casting, Listen Together, Last.fm/Discord integration, AI lyric translation, complete word-level/background-vocal lyrics, equalizer, normalization, crossfade, silence skipping, Android widgets/Android Auto, and global media keys are not implemented.
 
-<img src="fastlane/metadata/android/en-US/images/screenshots/screenshot_1.png" alt="Home screen" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/screenshots/screenshot_2.png" alt="Artist screen" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/screenshots/screenshot_3.png" alt="Recognize music screen" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/screenshots/screenshot_4.png" alt="Listen together screen" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/screenshots/screenshot_5.png" alt="Player screen" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/screenshots/screenshot_6.png" alt="Player lyrics screen" width="30%" />
+Collection browsing and public playlist import currently load the **first page only**. Local audio without a known duration cannot use the seek slider. External service changes can break playback or discovery.
 
-</div>
+The desktop app uses the retained upstream network implementation. This port does not claim that third-party service access is supported or approved by those services.
 
----
+## Data and privacy
 
-<div align="center">
-
-<h1><a id="features"></a>Features</h1>
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-
-#### Playback
-- Stream any song or video from YouTube Music
-- Background playback
-- Download & cache for offline use
-- Skip silence
-- Sleep timer
-
-</td>
-    <td width="50%" valign="top">
-
-#### Audio
-- Audio normalization
-- Tempo & pitch control
-- Equalizer
-- Crossfade
-
-</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-
-#### Lyrics & Discovery
-- Live synced lyrics
-- AI-powered lyrics translation
-- Personalized quick picks
-- Search songs, albums, artists, videos, and playlists
-
-</td>
-    <td width="50%" valign="top">
-
-#### Library & Account
-- Full library management
-- Local playlists
-- Import playlists
-- Reorder songs in playlist or queue
-- YouTube Music account login
-- Sync songs, artists, albums, and playlists
-
-</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-
-#### Social
-- Listen together with friends in real-time
-- Last.fm integration for scrobbling
-- Safe Discord Rich Presence
-
-</td>
-    <td width="50%" valign="top">
-
-#### Interface
-- Home screen widget
-- Light / Dark / Black / Dynamic theme modes
-- Dynamic color + 19 preset color palettes
-- Built with Material 3
-
-</td>
-  </tr>
-</table>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="download-now"></a>Download Now</h1>
-
-<h2>Stable Release</h2>
-
-<table>
-  <tr>
-    <th align="center">Obtainium</th>
-    <th align="center">IzzyOnDroid</th>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/MetrolistGroup/Metrolist/">
-        <img src="assets/badges/obtainium.svg" alt="Add Metrolist to Obtainium" height="100">
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://apt.izzysoft.de/fdroid/index/apk/com.metrolist.music">
-        <img src="assets/badges/izzyondroid.svg" alt="Get Metrolist on IzzyOnDroid" height="100">
-      </a>
-    </td>
-  </tr>
-  <tr>
-    <th align="center">OpenAPK</th>
-    <th align="center">GitHub</th>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://www.openapk.net/metrolist/com.metrolist.music/">
-        <img src="assets/badges/openapk.svg" alt="Get Metrolist on OpenAPK" height="100">
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/MetrolistGroup/Metrolist/releases/latest/download/Metrolist.apk">
-        <img src="assets/badges/github-stable.svg" alt="Get the stable Metrolist release on GitHub" height="100">
-      </a>
-    </td>
-  </tr>
-</table>
-
-<h2>Nightly Build</h2>
-
-<table>
-  <tr>
-    <th align="center">GitHub</th>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/MetrolistGroup/Metrolist/releases/download/nightly/Metrolist-with-Google-Cast.apk">
-        <img src="assets/badges/github-nightly.svg" alt="Get the Metrolist nightly build on GitHub" height="120">
-      </a>
-    </td>
-  </tr>
-</table>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="faq"></a>FAQ</h1>
-
-<h3>Got questions? Check out our <a href="https://metrolist.cc/#faq">FAQ page</a> for answers to the most common ones.</h3>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="translations"></a>Translations</h1>
-
-[![Translation status](https://img.shields.io/weblate/progress/metrolist?style=for-the-badge&labelColor=0d1117)](https://hosted.weblate.org/engage/metrolist/)
-
-<h3>We use Weblate to translate Metrolist. <a href="https://hosted.weblate.org/projects/Metrolist/">Help us bring Metrolist to more people!</a></h3>
-
-<a href="https://hosted.weblate.org/projects/Metrolist/">
-  <img src="https://hosted.weblate.org/widget/Metrolist/horizontal-auto.svg" alt="Translation status" />
-</a>
-
-<h3>Thank you! Every translation makes Metrolist a little more accessible to someone, somewhere in the world.</h3>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="support-the-project"></a>Support the Project</h1>
-
-<h3>Metrolist is free and open-source. If it brings you joy, consider supporting its development!</h3>
-
-#### Monero (XMR)
-
-<img src="assets/XMR.png" alt="Monero QR code" width="150" />
+Your desktop library is stored locally at:
 
 ```text
-44XjSELSWcgJTZiCKzjpCQWyXhokrH9RqH3rpp35FkSKi57T25hniHWHQNhLeXyFn3DDYqufmfRB1iEtENerZpJc7xJCcqt
+%APPDATA%\MetrolistDesktop\library.json
 ```
 
-#### Buy Me a Coffee
+Library backups contain metadata and local file paths, not audio files. Imported audio stays in its original location. Online discovery/playback and lyrics make requests to their respective providers; this is not an offline-only application. The earlier MetroDesk browser library is separate.
 
-<a href="https://www.buymeacoffee.com/mostafaalagamy">
-  <img src="assets/buymeacoffee.png" alt="Buy Me a Coffee" width="150" />
-</a>
+## Build from source
 
-</div>
+The current build setup is Windows-specific. The published installer was built with Java 21 and FFmpeg 7.1.1 essentials.
 
----
+1. Clone the desktop branch and open PowerShell in its root folder:
 
-<div align="center">
+   ```powershell
+   git clone --branch feat/windows-desktop-port https://github.com/naufalamr17/MetrolistPC.git
+   cd MetrolistPC
+   ```
 
-<h1>Special Thanks</h1>
+2. Download a Windows x64 **JDK 21** from [Eclipse Adoptium](https://adoptium.net/temurin/releases/?version=21). Extract it into `.tools` so the JDK folder is named `.tools\jdk-21...` and contains `bin\java.exe`.
+3. Install/provide the [Gyan FFmpeg essentials build](https://www.gyan.dev/ffmpeg/builds/). The current desktop build expects these files at the following paths:
+   - `C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe`
+   - `C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\LICENSE`
+   - `C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\README.txt`
+4. Run:
 
-<h3>Metrolist stands on the shoulders of incredible open-source work.</h3>
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build-Desktop.ps1
+```
 
-<h3>Main Inspirations</h3>
+The script runs the desktop tests and builds the application image and EXE installer. Gradle downloads build dependencies on the first run. The desktop build is separate from Android and does not require an Android SDK.
 
-<table>
-  <thead>
-    <tr>
-      <th align="center">Project</th>
-      <th align="center">Authors</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><strong>InnerTune</strong></td>
-      <td align="center"><a href="https://github.com/z-huang">Zion Huang</a> · <a href="https://github.com/Malopieds">Malopieds</a></td>
-    </tr>
-    <tr>
-      <td align="center"><strong>OuterTune</strong></td>
-      <td align="center"><a href="https://github.com/DD3Boh">Davide Garberi</a> · <a href="https://github.com/mikooomich">Michael Zh</a></td>
-    </tr>
-  </tbody>
-</table>
+Outputs:
 
-<h3>Libraries & Integrations</h3>
+```text
+desktop\build\compose\binaries\main\app\
+desktop\build\compose\binaries\main\exe\
+```
 
-<table>
-  <thead>
-    <tr>
-      <th align="center">Project</th>
-      <th align="center">Contribution</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><a href="https://better-lyrics.boidu.dev"><strong>Better Lyrics</strong></a></td>
-      <td>Time-synced lyrics with word-by-word highlighting & YouTube Music integration</td>
-    </tr>
-    <tr>
-      <td align="center"><a href="https://github.com/MetrolistGroup/metroserver"><strong>metroserver</strong></a></td>
-      <td>Listen-together real-time backend</td>
-    </tr>
-    <tr>
-      <td align="center"><a href="https://github.com/aleksey-saenko/MusicRecognizer"><strong>MusicRecognizer</strong></a></td>
-      <td>Music recognition feature & Shazam API integration</td>
-    </tr>
-    <tr>
-      <td align="center"><a href="https://github.com/ZemerTeam/zemer-cipher"><strong>zemer-cipher</strong></a></td>
-      <td>YouTube cipher deobfuscation and PoToken generation</td>
-    </tr>
-    <tr>
-      <td align="center"><a href="https://www.blacksmith.sh"><strong>Blacksmith</strong></a></td>
-      <td>High-performance GitHub Actions runners powering our CI</td>
-    </tr>
-  </tbody>
-</table>
+`Run-Metrolist.cmd` launches the locally built app image. See [Windows-Guide.txt](Windows-Guide.txt) for usage details. Build tools, caches, personal libraries, and generated installers are not part of the source repository.
 
-<br/>
+## Verification
 
-<a href="https://www.blacksmith.sh">
-  <img src="assets/blacksmith-powered.png" alt="CI powered by Blacksmith" width="280" />
-</a>
+The packaged desktop build passed 12 automated tests covering library handling, lyric timing, queue/UI behavior, and audio-source validation. A separate live packaged-app check exercised guest home discovery, a 50-track no-input mix, search, synchronized lyrics, stream extraction, and play/pause.
 
-<h3>We also thank the entire open-source community! For every library, tool, and API that powers this project.</h3>
+These checks are a snapshot, not a guarantee of service availability or complete feature coverage. Android APK compilation was not verified successfully in the local offline environment. No Android database schema was changed.
 
-</div>
+## Credits
 
----
+The original application and most of the retained source belong to the upstream authors and contributors:
 
-<div align="center">
+- [MetrolistGroup/Metrolist](https://github.com/MetrolistGroup/Metrolist), [Mo Agamy](https://github.com/mostafaalagamy), and [all Metrolist contributors](https://github.com/MetrolistGroup/Metrolist/graphs/contributors): original Android application, shared Kotlin engine, LRCLIB integration, resources, and artwork.
+- [InnerTune](https://github.com/z-huang/InnerTune) by Zion Huang, and [InnerTune](https://github.com/Malopieds/InnerTune) by Malopieds: upstream foundations acknowledged by Metrolist.
+- [OuterTune](https://github.com/DD3Boh/OuterTune), Davide Garberi, and [Michael Zh](https://github.com/mikooomich): upstream inspiration acknowledged by Metrolist.
+- [InnerTubeX](https://github.com/MetrolistGroup/innertubex), [LRCLIB](https://lrclib.net/), [Kotlin](https://kotlinlang.org/), [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform), [Ktor](https://ktor.io/), [Eclipse Temurin](https://adoptium.net/), and [FFmpeg](https://ffmpeg.org/): libraries, services, runtime, and playback tools used by the desktop port.
 
-<h1>Contributors</h1>
+REA was used during educational APK inspection; the desktop application does not depend on REA at runtime. No original APK or music files are redistributed in this repository.
 
-<h3>This project wouldn't exist without these amazing people!</h3>
+Please support and credit the original projects. Desktop-port issues belong in this repository, not in the original Metrolist issue tracker.
 
-<a href="https://github.com/MetrolistGroup/Metrolist/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=MetrolistGroup/Metrolist" alt="Contributors" />
-</a>
+## License and third-party notices
 
-</div>
+See [LICENSE](LICENSE) for the retained GNU GPL version 3 license and [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) for bundled runtime/decoder provenance and source links. Third-party components keep their own licenses. All names, trademarks, artwork, music, and lyrics remain the property of their respective owners.
 
----
-
-<div align="center">
-
-<h1>Disclaimer</h1>
-
-This project is **not affiliated with, funded, authorized, endorsed by, or in any way associated** with YouTube, Google LLC, Metrolist Group LLC, or any of their affiliates and subsidiaries.
-
-All trademarks, service marks, and intellectual property rights referenced in this project belong to their respective owners.
-
-</div>
-
----
-
-<div align="center">
-
-<br/>
-
-**Made with ❤️ by [Mo Agamy](https://github.com/mostafaalagamy)**
-
-**This project stands with Palestine 🇵🇸**
-
-</div>
+This experimental project is provided without warranty. The educational-purpose note does not replace any applicable license or service terms.

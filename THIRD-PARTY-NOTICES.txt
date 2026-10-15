@@ -1,0 +1,46 @@
+METROLIST DESKTOP - THIRD-PARTY NOTICES
+
+This unofficial educational Windows port retains the original Metrolist source,
+copyright notices, and GNU GPL version 3 license. See LICENSE and README.md.
+Original project: https://github.com/MetrolistGroup/Metrolist
+Source base: 76fa5a78b5110674442884b6f21c0cef51cdb782
+
+Shared Metrolist InnerTube and LRCLIB code is compiled from the retained source.
+InnerTubeX: https://github.com/MetrolistGroup/innertubex (v0.8.4 desktop).
+Other JVM dependencies retain the license and notice files in their JAR files.
+The desktop dependency declarations are in desktop/build.gradle.kts.
+
+FFMPEG DECODER
+The initial Windows installer bundles an unmodified, separate FFmpeg executable:
+7.1.1-essentials_build-www.gyan.dev, GPL version 3.
+Copyright (c) 2000-2025 the FFmpeg developers.
+Build distributor: https://www.gyan.dev/ffmpeg/builds/
+FFmpeg source revision: https://github.com/FFmpeg/FFmpeg/commit/db69d06eee
+Source archive: https://github.com/FFmpeg/FFmpeg/archive/db69d06eee.tar.gz
+The build's original README lists configuration and external library versions.
+The installer includes that file as FFmpeg-README.txt and the supplied GPL text
+as FFmpeg-LICENSE.txt in the application resources. The FFmpeg executable runs
+as a separate process; the desktop application does not link FFmpeg libraries.
+The FFmpeg source archive alone is not the complete source for every external
+library in this static build. Preserve the build configuration and obtain the
+matching external library sources/build instructions before redistributing a
+modified decoder or claiming a complete corresponding-source package.
+
+JAVA RUNTIME
+The initial Windows installer includes a reduced Eclipse Temurin Java 21.0.12.1+1
+runtime. OpenJDK license files and component notices are retained under the
+runtime's legal directory. OpenJDK is GPL version 2 with the Classpath Exception;
+individual components may use additional licenses.
+Runtime distributor: https://adoptium.net/
+Build release: https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12.1%2B1
+Source project: https://github.com/adoptium/jdk21u
+Do not remove the runtime legal directory when redistributing the app.
+
+SERVICES AND CONTENT
+YouTube/YouTube Music, Google, Metrolist, and other product names belong to their
+owners. This port is not affiliated with or endorsed by those organizations.
+LRCLIB and upstream providers supply lyrics/metadata subject to their own terms.
+Music, lyrics, and artwork are not relicensed by this project.
+
+This educational-purpose statement does not add restrictions to GPL rights.
+No warranty is provided. Consult each component's original license and source.
