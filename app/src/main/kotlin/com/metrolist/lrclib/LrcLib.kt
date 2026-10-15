@@ -8,6 +8,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.serialization.kotlinx.json.json
@@ -84,7 +85,25 @@ object LrcLib {
             if (artistName != null) parameter("artist_name", artistName)
             if (albumName != null) parameter("album_name", albumName)
         }.body<List<Track>>()
-    }.getOrDefault(emptyList())
+    }.getOrElse { error ->
+        currentCoroutineContext().ensureActive()
+        if (error is ClientRequestException && error.response.status.value == 429) throw error
+        emptyList()
+    }
+
+    internal suspend fun exactLyrics(http: HttpClient, title: String, artist: String, duration: Int, album: String?): String? = runCatching {
+        val track = http.get("/api/get") {
+            parameter("track_name", title)
+            parameter("artist_name", artist)
+            parameter("duration", duration)
+            album?.takeIf { it.isNotBlank() }?.let { parameter("album_name", it) }
+        }.body<Track>()
+        track.syncedLyrics?.takeIf { it.isNotBlank() } ?: track.plainLyrics?.takeIf { it.isNotBlank() }
+    }.getOrElse { error ->
+        currentCoroutineContext().ensureActive()
+        if (error is ClientRequestException && error.response.status.value == 429) throw error
+        null
+    }
 
     private suspend fun queryLyrics(
         artist: String,
@@ -141,9 +160,10 @@ object LrcLib {
         duration: Int,
         album: String? = null,
     ) = runCatching {
-        val tracks = queryLyrics(artist, title, album)
         val cleanedTitle = cleanTitle(title)
         val cleanedArtist = cleanArtist(artist)
+        if (duration > 0) exactLyrics(client, cleanedTitle, cleanedArtist, duration, album)?.let { return@runCatching it }
+        val tracks = queryLyrics(artist, title, album)
 
         val res = when {
             duration == -1 -> {

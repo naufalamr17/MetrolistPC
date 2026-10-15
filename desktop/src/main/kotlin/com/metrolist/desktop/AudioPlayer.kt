@@ -5,6 +5,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.Closeable
 import java.io.EOFException
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
+import java.io.ByteArrayInputStream
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
@@ -13,6 +17,9 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.atomic.AtomicLong
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
@@ -26,6 +33,29 @@ fun allowedMediaUrl(value: String): Boolean = runCatching {
 }.getOrDefault(false)
 
 data class ByteRange(val first: Long, val last: Long)
+
+internal fun copyResumableRange(output: OutputStream, range: ByteRange, chunkSize: Long, stopped: () -> Boolean, open: (Long, Long) -> InputStream) {
+    var position = range.first
+    var failures = 0
+    val buffer = ByteArray(32768)
+    while (!stopped() && position <= range.last) {
+        val end = minOf(position + chunkSize - 1, range.last)
+        try {
+            open(position, end).use { input ->
+                while (!stopped() && position <= end) {
+                    val count = input.read(buffer, 0, minOf(buffer.size.toLong(), end - position + 1).toInt())
+                    if (count < 0) throw EOFException("Media connection ended before the requested range")
+                    output.write(buffer, 0, count)
+                    position += count
+                    failures = 0
+                }
+            }
+        } catch (error: IOException) {
+            if (stopped() || ++failures >= 3) throw error
+            Thread.sleep(150L * failures)
+        }
+    }
+}
 
 fun mediaRange(header: String?, length: Long): ByteRange {
     require(length > 0)
@@ -69,32 +99,28 @@ class BoundedMediaSource(private val stream: ExtractedStream) : Closeable {
                     exchange.sendResponseHeaders(if (partial) 206 else 200, if (exchange.requestMethod == "HEAD") -1 else range.last - range.first + 1)
                     if (exchange.requestMethod == "GET") {
                         exchange.responseBody.use { output ->
-                            var position = range.first
-                            val chunk = stream.rangeChunkSizeBytes.coerceIn(64 * 1024L, 1024 * 1024L)
-                            while (!stopped.get() && position <= range.last) {
-                                val end = minOf(position + chunk - 1, range.last)
+                            val chunk = stream.rangeChunkSizeBytes.takeIf { it > 0 }?.coerceAtMost(1024 * 1024L) ?: (1024 * 1024L)
+                            copyResumableRange(output, range, chunk, stopped::get) { position, end ->
                                 val request = HttpRequest.newBuilder(URI(stream.audioUrl)).timeout(Duration.ofSeconds(30))
                                 stream.headers.forEach { (name, value) ->
                                     if (name.lowercase() !in setOf("range", "host", "connection", "content-length")) request.header(name, value)
                                 }
                                 request.header("Range", "bytes=$position-$end")
                                 val response = client.send(request.GET().build(), HttpResponse.BodyHandlers.ofInputStream())
-                                response.body().use { input ->
-                                    check(response.statusCode() == 206 || (position == 0L && response.statusCode() == 200))
-                                    if (response.statusCode() == 206) {
-                                        val contentRange = response.headers().firstValue("Content-Range").orElse("")
-                                        check(contentRange.startsWith("bytes $position-"))
-                                    }
-                                    var remaining = end - position + 1
-                                    val buffer = ByteArray(32768)
-                                    while (!stopped.get() && remaining > 0) {
-                                        val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
-                                        if (count < 0) throw EOFException()
-                                        output.write(buffer, 0, count)
-                                        remaining -= count
-                                    }
+                                val valid = (response.statusCode() == 206 && response.headers().firstValue("Content-Range").orElse("").startsWith("bytes $position-")) ||
+                                    (position == 0L && response.statusCode() == 200)
+                                if (!valid) {
+                                    response.body().close()
+                                    throw IOException("Media range was refused (${response.statusCode()})")
                                 }
-                                position = end + 1
+                                // HttpRequest.timeout does not bound reads from an ofInputStream body.
+                                val body = executor.submit<ByteArray> { response.body().use { it.readNBytes((end - position + 1).toInt()) } }
+                                try { ByteArrayInputStream(body.get(20, TimeUnit.SECONDS)) }
+                                catch (error: TimeoutException) {
+                                    body.cancel(true)
+                                    runCatching { response.body().close() }
+                                    throw IOException("Media body timed out", error)
+                                } catch (error: ExecutionException) { throw IOException("Media body failed", error.cause) }
                             }
                         }
                     }
@@ -124,8 +150,8 @@ fun scalePcm(buffer: ByteArray, count: Int, volume: Float) {
     }
 }
 
-class AudioPlayer : Closeable {
-    private val state = MutableStateFlow("stopped")
+open class AudioPlayer : Closeable {
+    protected val state = MutableStateFlow("stopped")
     val status = state.asStateFlow()
     private val generation = AtomicLong()
     private val workers = Executors.newCachedThreadPool { task -> Thread(task, "metrolist-audio").apply { isDaemon = true } }
@@ -134,19 +160,24 @@ class AudioPlayer : Closeable {
     @Volatile private var proxy: BoundedMediaSource? = null
     @Volatile private var paused = false
     @Volatile private var startSeconds = 0.0
+    @Volatile private var lastPosition = 0.0
     @Volatile var volume = 0.7f
     @Volatile var speed = 1.0
     var onEnded: () -> Unit = {}
     var onStarted: () -> Unit = {}
     var onFailure: () -> Unit = {}
 
-    val position: Double get() = startSeconds + (line?.let { runCatching { it.longFramePosition / 44100.0 * speed }.getOrDefault(0.0) } ?: 0.0)
+    open val position: Double get() = line?.let { runCatching { startSeconds + it.longFramePosition / 44100.0 * speed }.getOrDefault(lastPosition) } ?: lastPosition
 
-    fun play(track: Track, stream: ExtractedStream?, offset: Double = 0.0) {
+    open fun play(track: Track, stream: ExtractedStream?, offset: Double = 0.0, startPaused: Boolean = false) {
         stop()
         val token = generation.get()
         startSeconds = offset.coerceAtLeast(0.0)
-        paused = false
+        lastPosition = startSeconds
+        paused = startPaused
+        val startedCallback = onStarted
+        val endedCallback = onEnded
+        val failedCallback = onFailure
         state.value = "loading"
         workers.submit {
             var ownedProcess: Process? = null
@@ -185,6 +216,7 @@ class AudioPlayer : Closeable {
                     proxy = ownedProxy
                 }
                 ownedLine!!.start()
+                if (paused) { ownedLine!!.stop(); state.value = "paused" }
                 val buffer = ByteArray(8192)
                 var started = false
                 ownedProcess!!.inputStream.use { pcm ->
@@ -197,7 +229,7 @@ class AudioPlayer : Closeable {
                         if (!started) {
                             started = true
                             state.value = "playing"
-                            onStarted()
+                            startedCallback()
                         }
                         var written = 0
                         while (written < count && token == generation.get()) written += ownedLine!!.write(buffer, written, count - written)
@@ -206,15 +238,19 @@ class AudioPlayer : Closeable {
                 if (token == generation.get()) {
                     ownedLine!!.drain()
                     check(started && ownedProcess!!.waitFor() == 0)
+                    val duration = track.duration.takeIf { it > 0 }?.toDouble() ?: stream?.mediaMetadata?.durationSeconds?.toDouble() ?: 0.0
+                    check(duration <= 0 || position >= duration - 3) { "Playback ended before the recording finished" }
                     state.value = "stopped"
-                    onEnded()
+                    endedCallback()
                 }
             } catch (_: Exception) {
                 if (token == generation.get()) {
                     state.value = "error"
-                    onFailure()
+                    lastPosition = position
+                    failedCallback()
                 }
             } finally {
+                synchronized(this) { if (line === ownedLine) lastPosition = position }
                 ownedProcess?.destroyForcibly()
                 runCatching { ownedLine?.close() }
                 runCatching { ownedProxy?.close() }
@@ -227,15 +263,16 @@ class AudioPlayer : Closeable {
         }
     }
 
-    fun togglePause() {
+    open fun togglePause() {
         if (state.value !in listOf("playing", "paused")) return
         paused = !paused
         if (paused) line?.stop() else line?.start()
         state.value = if (paused) "paused" else "playing"
     }
 
-    @Synchronized fun stop() {
+    @Synchronized open fun stop() {
         generation.incrementAndGet()
+        lastPosition = position
         process?.destroyForcibly()
         process = null
         runCatching { line?.stop(); line?.close() }

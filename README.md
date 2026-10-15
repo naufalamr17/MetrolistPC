@@ -29,6 +29,7 @@ The installer is distributed as a Release attachment rather than committed into 
 ## Available features
 
 - Online music discovery, guest home shelves, and search for songs, videos, albums, artists, and public playlists. Video results play their audio.
+- A mobile-inspired Home layout with a three-row quick-pick grid, horizontal playlist/recent-listening cards, mood browsing, and Home/search continuation pages.
 - **Play my mix** with no search text. Guest collections provide initial seeds; local likes and listening history help choose later seeds for upstream radio recommendations.
 - Play/pause, previous/next, seeking when duration is known, volume, playback speed, shuffle, repeat, queue editing, and related tracks.
 - Synchronized or plain lyrics, active-line highlighting, click-to-seek, and adjustable lyric timing.
@@ -41,7 +42,7 @@ This is an early desktop port, **not full Android feature parity**. Recommendati
 
 Google sign-in/cloud sync, offline downloads, casting, Listen Together, Last.fm/Discord integration, AI lyric translation, complete word-level/background-vocal lyrics, equalizer, normalization, crossfade, silence skipping, Android widgets/Android Auto, and global media keys are not implemented.
 
-Collection browsing and public playlist import currently load the **first page only**. Local audio without a known duration cannot use the seek slider. External service changes can break playback or discovery.
+Public playlists load continuation pages, subject to limits of 100 pages, 10,000 songs, and 180 seconds. Artist/album browsing still depends on the pages exposed by the upstream methods. Local audio without a known duration cannot use the seek slider. HLS-only/live and SABR-only playback are not supported; this desktop build requests direct media with bounded byte ranges. External service changes can break playback or discovery. See [Desktop-Feature-Status.txt](Desktop-Feature-Status.txt) for the current scope.
 
 The desktop app uses the retained upstream network implementation. This port does not claim that third-party service access is supported or approved by those services.
 
@@ -57,40 +58,86 @@ Library backups contain metadata and local file paths, not audio files. Imported
 
 ## Build from source
 
-The current build setup is Windows-specific. The published installer was built with Java 21 and FFmpeg 7.1.1 essentials.
+Build on **Windows x64**, using a full **JDK 21** and **FFmpeg**. The current setup was tested with Eclipse Temurin 21.0.12.1+1 and FFmpeg 7.1.1 essentials. The Gradle wrapper is included; you do not need to install Gradle, Android Studio, or an Android SDK for the desktop build. The first build needs internet access to download dependencies and packaging tools.
 
-1. Clone the desktop branch and open PowerShell in its root folder:
+### 1. Open the desktop source
 
-   ```powershell
-   git clone --branch feat/windows-desktop-port https://github.com/naufalamr17/MetrolistPC.git
-   cd MetrolistPC
-   ```
+For a fresh checkout, open PowerShell and run:
 
-2. Download a Windows x64 **JDK 21** from [Eclipse Adoptium](https://adoptium.net/temurin/releases/?version=21). Extract it into `.tools` so the JDK folder is named `.tools\jdk-21...` and contains `bin\java.exe`.
-3. Install/provide the [Gyan FFmpeg essentials build](https://www.gyan.dev/ffmpeg/builds/). The current desktop build expects these files at the following paths:
-   - `C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe`
-   - `C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\LICENSE`
-   - `C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\README.txt`
-4. Run:
+```powershell
+git clone --branch feat/windows-desktop-port https://github.com/naufalamr17/MetrolistPC.git
+Set-Location .\MetrolistPC
+```
+
+For an existing checkout, open PowerShell in the folder containing `Build-Desktop.ps1`. Build the checkout that contains the changes you want: local edits are included, but building does not commit, push, or update the GitHub Release. A previously published Release may contain an older build.
+
+### 2. Prepare the build tools
+
+Download a Windows x64 JDK 21 from [Eclipse Adoptium](https://adoptium.net/temurin/releases/?version=21). Extract it into `.tools` inside the repository. Keep the extracted directory name starting with `jdk-21`, for example:
+
+```text
+MetrolistPC\
+  Build-Desktop.ps1
+  gradlew.bat
+  .tools\
+    jdk-21.0.12.1+1\
+      bin\java.exe
+      bin\jpackage.exe
+      lib\modules
+```
+
+Use a full JDK, not a JRE. `Build-Desktop.ps1` selects the first `.tools\jdk-21*` directory, sets `JAVA_HOME`, and applies the process-local Java pipe workaround used on this Windows host. Keep only the intended JDK 21 directory there.
+
+Provide the [Gyan FFmpeg essentials build](https://www.gyan.dev/ffmpeg/builds/) at these paths, which are currently fixed in `desktop/build.gradle.kts`:
+
+```text
+C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe
+C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\LICENSE
+C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\README.txt
+```
+
+The EXE and accompanying license files are bundled into the app image. The original Metrolist artwork is converted into the Windows app/installer icon during the build.
+
+### 3. Build and test
+
+From the repository root, run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build-Desktop.ps1
 ```
 
-The script runs the desktop tests and builds the application image and EXE installer. Gradle downloads build dependencies on the first run. The desktop build is separate from Android and does not require an Android SDK.
-
-Outputs:
+The script runs these Gradle tasks in the standalone `desktop` project:
 
 ```text
-desktop\build\compose\binaries\main\app\
-desktop\build\compose\binaries\main\exe\
+test createDistributable packageExe --no-daemon
 ```
 
-`Run-Metrolist.cmd` launches the locally built app image. See [Windows-Guide.txt](Windows-Guide.txt) for usage details. Build tools, caches, personal libraries, and generated installers are not part of the source repository.
+Wait for `BUILD SUCCESSFUL` and an exit code of `0`. Do not use the root Android build task to create the Windows EXE. Later builds reuse cached dependencies and unchanged outputs. If packaging reports a locked file, close the locally built app and retry; do not delete your library.
+
+### 4. Run the latest build or installer
+
+The exact outputs are:
+
+```text
+desktop\build\compose\binaries\main\app\Metrolist Desktop\Metrolist Desktop.exe
+desktop\build\compose\binaries\main\exe\Metrolist Desktop-13.7.0.exe
+```
+
+To try the new UI without installing, double-click `Run-Metrolist.cmd` in the repository root. Keep the entire app-image folder together; its launcher needs the adjacent runtime, libraries, and audio decoder.
+
+To install, close Metrolist Desktop and run the generated installer. **Building does not replace an existing installed app or its Start menu shortcut.** That shortcut can still open the old UI until you update the installation. Back up `%APPDATA%\MetrolistDesktop\library.json` before changing installations. The installer is unsigned; do not disable Windows security protections.
+
+The package version stays `13.7.0` under the upstream contribution rules. Different rebuilds can therefore have the same filename and version. Compare a checksum when sharing a specific build:
+
+```powershell
+certutil.exe -hashfile ".\desktop\build\compose\binaries\main\exe\Metrolist Desktop-13.7.0.exe" SHA256
+```
+
+See [Windows-Guide.txt](Windows-Guide.txt) for usage details. Build tools, caches, personal libraries, and generated installers are not committed into the source repository. Share the EXE as a GitHub Release attachment together with the corresponding source and third-party notices.
 
 ## Verification
 
-The packaged desktop build passed 12 automated tests covering library handling, lyric timing, queue/UI behavior, and audio-source validation. A separate live packaged-app check exercised guest home discovery, a 50-track no-input mix, search, synchronized lyrics, stream extraction, and play/pause.
+The current desktop source has 21 automated tests covering library handling, lyric timing, playback recovery, queue controls, quick-pick loading, and UI rendering at wide/narrow window sizes. Build success requires those tests to pass. A separate live packaged-app check has exercised guest home discovery, a 50-track no-input mix, search continuation, 45 seconds of audio playback, play/pause, paused seeking, next-track playback, discovery, and a native UI snapshot. Lyrics are an optional live check because provider coverage and rate limits vary.
 
 These checks are a snapshot, not a guarantee of service availability or complete feature coverage. Android APK compilation was not verified successfully in the local offline environment. No Android database schema was changed.
 

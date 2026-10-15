@@ -19,6 +19,20 @@ class DesktopState(
     var view by mutableStateOf("home")
     var panel by mutableStateOf("queue")
     var home by mutableStateOf<List<Shelf>>(emptyList())
+    var homeFilters by mutableStateOf<List<HomeFilter>>(emptyList())
+    var homeFilter by mutableStateOf<HomeFilter?>(null)
+    var homeContinuation by mutableStateOf<String?>(null)
+    var moods by mutableStateOf<List<MoodChoice>>(emptyList())
+    var quickPicks by mutableStateOf<List<Track>>(emptyList())
+    var quickPicksBusy by mutableStateOf(false)
+    private var quickPicksJob: Job? = null
+    private var discoveryJob: Job? = null
+    private var discovery = emptyList<Shelf>()
+    var resultsContinuation by mutableStateOf<String?>(null)
+    var loadingMore by mutableStateOf(false)
+    var panelVisible by mutableStateOf(true)
+    var volume by mutableStateOf(data.volume)
+    private var unmutedVolume = data.volume.takeIf { it > 0 } ?: 0.7f
     var results by mutableStateOf<List<Track>>(emptyList())
     var collectionTitle by mutableStateOf("")
     var query by mutableStateOf("")
@@ -37,12 +51,19 @@ class DesktopState(
     var repeat by mutableStateOf(0)
     var sleepUntil by mutableStateOf(0L)
     var repeatShuffle by mutableStateOf(false)
+    var extendingQueue by mutableStateOf(false)
+    val canNext: Boolean get() = now != null && !extendingQueue && (index < queue.lastIndex || repeat == 1 || now?.localPath == null)
+    private var originalQueue = emptyList<Track>()
+    private var playbackGeneration = 0L
+    private var recoveryAttempts = 0
     private var stream: ExtractedStream? = null
     private var playJob: Job? = null
     private var lyricJob: Job? = null
     private var relatedJob: Job? = null
     private var browseJob: Job? = null
     private var mixJob: Job? = null
+    private var nextJob: Job? = null
+    private var queueRequest = 0L
     private var closed = false
 
     init { player.volume = data.volume }
@@ -86,10 +107,67 @@ class DesktopState(
         }
     }
 
-    fun refreshHome() = browse("home") { home = engine.home() }
+    fun refreshHome(filter: HomeFilter? = homeFilter) = browse("home") {
+        val feed = engine.homeFeed(params = filter?.params)
+        homeFilter = filter
+        home = if (filter == null) mergeShelves(feed.shelves, discovery) else feed.shelves
+        homeContinuation = feed.continuation
+        if (filter == null) homeFilters = feed.filters
+        if (filter == null) {
+            quickPicksJob?.cancel()
+            quickPicksJob = scope.launch {
+                quickPicksBusy = true
+                try { quickPicks = engine.mix(data, feed.shelves).filter { it.kind == "song" }.distinctBy { it.id }.take(18) }
+                catch (cancel: CancellationException) { throw cancel }
+                catch (_: Exception) { /* Recommendations must not hide the available playlist shelves. */ }
+                finally { quickPicksBusy = false }
+            }
+        }
+        if (discoveryJob == null) discoveryJob = scope.launch {
+            try {
+                val loaded = engine.discover()
+                discovery = loaded.shelves
+                moods = loaded.moods
+                if (homeFilter == null) home = mergeShelves(home, discovery)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (_: Exception) { /* Optional discovery must not hide a working Home feed. */ }
+        }
+    }
+
+    fun openMood(choice: MoodChoice) = browse("collection") { collectionTitle = choice.title; results = engine.mood(choice) }
+
+    fun loadMoreHome() {
+        val continuation = homeContinuation ?: return
+        if (loadingMore || busy) return
+        loadingMore = true
+        browseJob = scope.launch {
+            try {
+                val feed = engine.homeFeed(continuation, homeFilter?.params)
+                home = mergeShelves(home, feed.shelves)
+                homeContinuation = feed.continuation.takeUnless { it == continuation }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (_: Exception) { error = "desktop_network_error" }
+            finally { loadingMore = false }
+        }
+    }
+
+    fun loadMoreResults() {
+        val continuation = resultsContinuation ?: return
+        if (loadingMore || busy) return
+        loadingMore = true
+        browseJob = scope.launch {
+            try {
+                val page = engine.searchPage(query, searchType, continuation)
+                results = (results + page.tracks).distinctBy { it.kind to it.id }.take(10000)
+                resultsContinuation = page.continuation.takeUnless { it == continuation }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (_: Exception) { error = "desktop_network_error" }
+            finally { loadingMore = false }
+        }
+    }
     fun search() {
         if (query.isBlank()) { navigate("search"); return }
-        browse("search") { results = engine.search(query, searchType) }
+        browse("search") { val page = engine.searchPage(query, searchType); results = page.tracks; resultsContinuation = page.continuation }
     }
 
     fun open(item: Track) {
@@ -131,6 +209,8 @@ class DesktopState(
     fun playList(tracks: List<Track>, start: Int = 0) {
         if (tracks.isEmpty()) return
         queue = tracks.filter { it.kind == "song" }.take(1000)
+        repeatShuffle = false
+        originalQueue = emptyList()
         if (queue.isNotEmpty()) playAt(start.coerceIn(queue.indices))
     }
 
@@ -140,6 +220,11 @@ class DesktopState(
         lyricJob?.cancel()
         relatedJob?.cancel()
         player.stop()
+        nextJob?.cancel()
+        queueRequest++
+        extendingQueue = false
+        val generation = ++playbackGeneration
+        recoveryAttempts = 0
         index = target
         position = 0.0
         stream = null
@@ -149,39 +234,60 @@ class DesktopState(
         error = ""
         player.onStarted = {
             scope.launch {
-                if (now?.id == track.id) persist(data.copy(
+                if (generation == playbackGeneration && now?.id == track.id) {
+                    error = ""
+                    persist(data.copy(
                     tracks = (data.tracks + track).distinctBy { it.id },
                     history = (listOf(track.id) + data.history).distinct().take(500),
-                ))
+                    ))
+                }
             }
         }
-        player.onEnded = { scope.launch { if (now?.id == track.id) next(automatic = true) } }
-        player.onFailure = { scope.launch { if (now?.id == track.id) error = "desktop_playback_error" } }
-        playJob = scope.launch {
-            try {
-                val resolved = if (track.localPath == null) engine.stream(track.id) else null
-                ensureActive()
-                stream = resolved
-                player.play(track, resolved)
-                if (track.duration <= 0) {
-                    val duration = resolved?.mediaMetadata?.durationSeconds?.toInt() ?: 0
-                    if (duration > 0) queue = queue.mapIndexed { i, item -> if (i == index) item.copy(duration = duration) else item }
+        player.onEnded = { scope.launch { if (generation == playbackGeneration) next(automatic = true) } }
+        player.onFailure = {
+            val resumeAt = player.position
+            scope.launch {
+                if (generation == playbackGeneration && !closed) {
+                    if (track.localPath == null && recoveryAttempts < 2) {
+                        recoveryAttempts++
+                        error = "desktop_reconnecting"
+                        preparePlayback(track, generation, resumeAt)
+                    } else error = "desktop_playback_error"
                 }
-            } catch (cancel: CancellationException) { throw cancel }
-            catch (_: Exception) { error = "desktop_playback_error" }
-            finally { if (now?.id == track.id) preparing = false }
+            }
         }
+        preparePlayback(track, generation)
         lyricJob = scope.launch {
             lyricsBusy = true
             try { lyrics = engine.lyrics(track) }
             catch (cancel: CancellationException) { throw cancel }
             catch (_: Exception) { lyrics = Lyrics("", emptyList()) }
-            finally { lyricsBusy = false }
+            finally { if (generation == playbackGeneration) lyricsBusy = false }
         }
         if (track.localPath == null) relatedJob = scope.launch {
-            try { related = engine.radio(track.id).filter { it.id != track.id } }
+            try { val loaded = engine.radio(track.id).filter { it.id != track.id }; if (generation == playbackGeneration) related = loaded }
             catch (cancel: CancellationException) { throw cancel }
-            catch (_: Exception) { related = emptyList() }
+            catch (_: Exception) { if (generation == playbackGeneration) related = emptyList() }
+        }
+    }
+
+    private fun preparePlayback(track: Track, generation: Long, offset: Double = 0.0) {
+        playJob?.cancel()
+        preparing = true
+        playJob = scope.launch {
+            try {
+                val resolved = if (track.localPath == null) engine.stream(track.id) else null
+                ensureActive()
+                if (generation != playbackGeneration || closed) return@launch
+                stream = resolved
+                player.play(track, resolved, offset)
+                if (track.duration <= 0) {
+                    val duration = resolved?.mediaMetadata?.durationSeconds?.toInt() ?: 0
+                    if (duration > 0) queue = queue.mapIndexed { i, item -> if (i == index) item.copy(duration = duration) else item }
+                }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (_: Exception) { if (generation == playbackGeneration) error = "desktop_playback_error" }
+            finally { if (generation == playbackGeneration) preparing = false }
         }
     }
 
@@ -190,35 +296,73 @@ class DesktopState(
         if (automatic && repeat == 2) { playAt(index); return }
         if (index < queue.lastIndex) { playAt(index + 1); return }
         if (repeat == 1) { playAt(0); return }
+        if (extendingQueue) return
         val seed = now?.takeIf { it.localPath == null } ?: return
-        scope.launch {
+        val generation = playbackGeneration
+        val request = ++queueRequest
+        extendingQueue = true
+        nextJob = scope.launch {
             try {
                 val ids = queue.mapTo(HashSet()) { it.id }
                 val extra = engine.radio(seed.id).filter { it.id !in ids }
-                if (extra.isNotEmpty() && now?.id == seed.id) {
-                    val start = queue.size
-                    queue = (queue + extra).takeLast(1000)
-                    playAt(minOf(start, queue.lastIndex))
+                if (generation == playbackGeneration) {
+                    if (extra.isNotEmpty()) {
+                        val added = extra.take(500)
+                        val retained = queue.takeLast(1000 - added.size)
+                        queue = retained + added
+                        playAt(retained.size)
+                    } else error = "desktop_no_more"
                 }
             } catch (cancel: CancellationException) { throw cancel }
             catch (_: Exception) { error = "desktop_network_error" }
+            finally { if (request == queueRequest) extendingQueue = false }
         }
     }
 
-    fun previous() { if (position > 4) seek(0.0) else playAt((index - 1).coerceAtLeast(0)) }
+    fun togglePlayback() {
+        if (player.status.value in listOf("playing", "paused")) player.togglePause()
+        else if (!preparing) { if (now != null) playAt(index) else if (queue.isNotEmpty()) playAt(0) else myMix() }
+    }
+
+    fun setPlayerVolume(value: Float) { volume = value.coerceIn(0f, 1f); player.volume = volume }
+    fun toggleMute() {
+        if (volume > 0) { unmutedVolume = volume; setPlayerVolume(0f) } else setPlayerVolume(unmutedVolume)
+        persist(data.copy(volume = volume))
+    }
+
+    fun previous() { if (position > 3) seek(0.0) else if (index > 0) playAt(index - 1) else if (repeat == 1 && queue.isNotEmpty()) playAt(queue.lastIndex) else if (index == 0) seek(0.0) }
     fun seek(seconds: Double) {
         val track = now ?: return
         if (track.localPath == null && stream == null) return
         position = seconds.coerceIn(0.0, track.duration.coerceAtLeast(1).toDouble())
-        player.play(track, stream, position)
+        player.play(track, stream, position, startPaused = player.status.value == "paused")
     }
 
     fun shuffle() {
         if (index !in queue.indices) return
         val current = queue[index]
-        queue = listOf(current) + queue.filterIndexed { i, _ -> i != index }.shuffled()
-        index = 0
+        if (!repeatShuffle) {
+            originalQueue = queue
+            queue = listOf(current) + queue.filterIndexed { i, _ -> i != index }.shuffled()
+        } else queue = originalQueue.filter { it in queue } + queue.filter { it !in originalQueue }
+        index = queue.indexOf(current).coerceAtLeast(0)
         repeatShuffle = !repeatShuffle
+    }
+
+    fun enqueue(track: Track, next: Boolean = false) {
+        if (track.kind != "song") return
+        if (queue.size >= 1000) { error = "desktop_queue_limit"; return }
+        queue = queue.toMutableList().apply { add(if (next && index >= 0) (index + 1).coerceAtMost(size) else size, track) }
+    }
+
+    fun clearQueue() {
+        playbackGeneration++
+        queueRequest++; nextJob?.cancel(); extendingQueue = false
+        playJob?.cancel(); lyricJob?.cancel(); relatedJob?.cancel(); mixJob?.cancel()
+        player.stop()
+        queue = emptyList(); index = -1; position = 0.0; stream = null; lyrics = null
+        repeatShuffle = false; originalQueue = emptyList()
+        preparing = false; lyricsBusy = false
     }
 
     fun moveQueue(from: Int, by: Int) {
@@ -234,7 +378,7 @@ class DesktopState(
         if (at !in queue.indices) return
         val wasCurrent = at == index
         queue = queue.filterIndexed { i, _ -> i != at }
-        if (queue.isEmpty()) { player.stop(); index = -1 }
+        if (queue.isEmpty()) clearQueue()
         else if (wasCurrent) playAt(at.coerceAtMost(queue.lastIndex))
         else if (at < index) index--
     }
@@ -299,3 +443,7 @@ class DesktopState(
         scope.cancel()
     }
 }
+
+fun mergeShelves(current: List<Shelf>, extra: List<Shelf>): List<Shelf> = (current + extra).groupBy { it.title }.map { (title, shelves) ->
+    Shelf(title, shelves.flatMap { it.tracks }.distinctBy { it.kind to it.id }.take(100))
+}.take(100)

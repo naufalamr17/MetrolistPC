@@ -1,4 +1,10 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import java.awt.image.BufferedImage
+import java.awt.RenderingHints
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import javax.imageio.ImageIO
 
 plugins {
     kotlin("jvm") version "2.4.20"
@@ -42,6 +48,36 @@ val prepareAudioResources by tasks.registering(Sync::class) {
     doFirst { check(ffmpegRoot.resolve("bin/ffmpeg.exe").isFile) { "The installed FFmpeg decoder was not found." } }
 }
 
+val windowsIcon = layout.buildDirectory.file("windows-icon/metrolist.ico")
+val prepareWindowsIcon by tasks.registering {
+    val original = file("../fastlane/metadata/android/en-US/images/icon.png")
+    inputs.file(original)
+    outputs.file(windowsIcon)
+    doLast {
+        val source = ImageIO.read(original)
+        val sizes = listOf(16, 24, 32, 48, 64, 128, 256)
+        val frames = sizes.map { size ->
+            val image = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
+            val graphics = image.createGraphics()
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+            graphics.drawImage(source, 0, 0, size, size, null)
+            graphics.dispose()
+            ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
+        }
+        val header = ByteBuffer.allocate(6 + sizes.size * 16).order(ByteOrder.LITTLE_ENDIAN)
+        header.putShort(0).putShort(1).putShort(sizes.size.toShort())
+        var offset = header.capacity()
+        sizes.forEachIndexed { index, size ->
+            header.put((size % 256).toByte()).put((size % 256).toByte()).put(0).put(0)
+                .putShort(1).putShort(32).putInt(frames[index].size).putInt(offset)
+            offset += frames[index].size
+        }
+        windowsIcon.get().asFile.apply { parentFile.mkdirs() }.outputStream().use { output ->
+            output.write(header.array()); frames.forEach(output::write)
+        }
+    }
+}
+
 tasks.processResources {
     from("../app/src/main/res/values/metrolist_strings.xml")
     from("../fastlane/metadata/android/en-US/images/icon.png") { rename { "metrolist-icon.png" } }
@@ -61,6 +97,7 @@ compose.desktop {
             appResourcesRootDir.set(layout.buildDirectory.dir("native-resources"))
             modules("java.desktop", "java.net.http", "java.logging", "java.xml", "jdk.crypto.ec", "jdk.unsupported", "jdk.httpserver")
             windows {
+                iconFile.set(windowsIcon)
                 menuGroup = "Metrolist"
                 shortcut = true
                 perUserInstall = true
@@ -72,6 +109,7 @@ compose.desktop {
 
 tasks.matching { it.name in setOf("createDistributable", "packageExe", "prepareAppResources") }.configureEach {
     dependsOn(prepareAudioResources)
+    dependsOn(prepareWindowsIcon)
 }
 
 tasks.register<JavaExec>("verifyLive") {

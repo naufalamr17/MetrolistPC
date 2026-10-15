@@ -1,0 +1,53 @@
+METROLIST DESKTOP - REPAIR SCOPE (15 OCTOBER 2026)
+
+This remains an unofficial educational Windows port. It is not an APK emulator
+and does not yet have complete feature parity with the Android application.
+
+THIS REPAIR
+- Replaces emoji controls with consistent vector icons, useful tooltips,
+  descriptive accessibility labels, and larger click targets.
+- Makes next/previous, repeat, shuffle restoration, paused seeking, queue
+  reordering/removal, play-next, mute, and queue clearing explicit operations.
+- Adds Ctrl+Space, Ctrl+Shift+Right, and Ctrl+Shift+Left playback shortcuts.
+- Makes the queue/lyrics panel collapsible and adapts it to narrower windows.
+- Follows the mobile Home structure with a three-row quick-pick artwork grid,
+  horizontally scrolling playlist and recent-listening cards, and a two-column
+  mood grid. The large desktop hero banner is removed. Quick picks load from
+  the real no-input recommendation mix, not a hard-coded demonstration list.
+- Adds a recent-listening shelf, provider Home filters and continuation pages,
+  search continuation pages, new-release albums, mood/genre browsing, and
+  multi-page public playlist loading.
+- Looks up exact song lyrics before broad search, and respects a provider rate
+  limit instead of repeatedly searching after HTTP 429.
+- Resumes interrupted media ranges without duplicating bytes. Persistent errors
+  trigger up to two fresh stream resolutions at the last playback position.
+  Retries are bounded and cancelled when selecting another song or clearing the
+  queue. An unavailable recording still needs another track or manual retry.
+- Uses the original Metrolist logo for the app/installer/shortcuts instead of
+  the default Compose/Kotlin launcher artwork. Original project credits remain
+  in README.md and THIRD-PARTY-NOTICES.txt.
+
+EXISTING DESKTOP FEATURES
+Guest online discovery/search/radio, local likes/history/playlists, local audio,
+line-synchronized or plain lyrics with adjustable offset, sleep timer, playback
+speed, light/dark themes, and library backup export/merge import.
+
+NOT IMPLEMENTED
+Google sign-in and cloud synchronization; offline downloads/cache management;
+casting; Listen Together; Last.fm/Discord; AI lyric translation; full word-level
+and background-vocal lyrics; equalizer, normalization, crossfade and silence
+skipping; Android widgets/Android Auto; global system media-key integration.
+Artist/album views still depend on the pages exposed by their upstream methods.
+HLS-only/live and SABR-only playback are not supported. The desktop requests
+direct media and bounded byte ranges instead of passing remote playlists into
+FFmpeg without a validated segment adapter.
+
+LIMITS
+The queue holds up to 1,000 tracks. The local library holds up to 10,000 tracks.
+Public playlist loading stops with an error rather than silently importing an
+incomplete collection beyond its page/size/time limits. External service and
+regional restrictions still apply. This repair does not promise uninterrupted
+playback during prolonged network outages or provider failures.
+
+No Android database schema changes. No app-version bump. No automatic GitHub
+push, release replacement, or personal-library reset is part of this repair.
