@@ -16,7 +16,7 @@ The Windows work is on [`feat/windows-desktop-port`](https://github.com/naufalam
 
 ## Install on Windows
 
-1. Open the [Windows desktop preview release](https://github.com/naufalamr17/MetrolistPC/releases/tag/desktop-v13.7.0-preview.1) and download `Metrolist-Desktop-Setup.exe`.
+1. Open the [Windows desktop preview release](https://github.com/naufalamr17/MetrolistPC/releases/tag/desktop-v13.7.0-preview.2) and download `Metrolist-Desktop-Setup.exe`.
 2. Run the installer, then open **Metrolist Desktop** from the Start menu or desktop shortcut.
 3. Open **Home** and click **Play my mix** to start discovering music without typing a title.
 
